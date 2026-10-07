@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Ngọc Rồng</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0d1b2a, #1b263b);
+      color: #f1f1f1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .game-container {
+      width: min(90vw, 720px);
+      background: rgba(0,0,0,0.35);
+      border: 2px solid #f4d35e;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 0 25px rgba(244,211,94,0.25);
+    }
+    h1 {
+      text-align: center;
+      margin-top: 0;
+      color: #ffd166;
+      letter-spacing: 1px;
+    }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 6px;
+      margin: 20px auto;
+      width: min(80vw, 520px);
+      aspect-ratio: 1;
+      background: #0b132b;
+      border: 2px solid #7ec8e3;
+      border-radius: 12px;
+      padding: 8px;
+    }
+    .cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.05);
+      font-size: clamp(12px, 1.7vw, 22px);
+      user-select: none;
+    }
+    .player { background: #4ecdc4; }
+    .enemy { background: #ff6b6b; }
+    .ball { background: #ffd166; color: #111; }
+    .info {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    .controls {
+      margin-top: 16px;
+      text-align: center;
+      color: #d9f0ff;
+      line-height: 1.6;
+    }
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      min-height: 60px;
+      text-align: center;
+      font-weight: bold;
+      color: #f7fff7;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>Game Ngọc Rồng</h1>
+    <div id="board"></div>
+
+    <div class="info">
+      <div>HP: <span id="hp">100</span></div>
+      <div>Ki: <span id="ki">30</span></div>
+      <div>Ngọc Rồng: <span id="balls">0</span>/7</div>
+    </div>
+
+    <div class="controls">
+      Di chuyển: W A S D<br />
+      Thu thập: C &nbsp;&nbsp; Tấn công: F &nbsp;&nbsp; Thoát: Q
+    </div>
+
+    <div id="status" class="status">Bắt đầu trò chơi!</div>
+  </div>
+
+  <script>
+    const rows = 10;
+    const cols = 10;
+    const boardEl = document.getElementById('board');
+    const hpEl = document.getElementById('hp');
+    const kiEl = document.getElementById('ki');
+    const ballsEl = document.getElementById('balls');
+    const statusEl = document.getElementById('status');
+
+    let player = { x: 0, y: 0, hp: 100, ki: 30, balls: 0 };
+    let enemies = [
+      { x: 7, y: 3, hp: 40, alive: true },
+      { x: 5, y: 7, hp: 50, alive: true },
+      { x: 8, y: 8, hp: 45, alive: true }
+    ];
+    let dragonBalls = [];
+
+    function createBoard() {
+      boardEl.innerHTML = '';
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    function randomPos() {
+      return {
+        x: Math.floor(Math.random() * cols),
+        y: Math.floor(Math.random() * rows)
+      };
+    }
+
+    function setupGame() {
+      player = { x: 0, y: 0, hp: 100, ki: 30, balls: 0 };
+      enemies = [
+        { x: 7, y: 3, hp: 40, alive: true },
+        { x: 5, y: 7, hp: 50, alive: true },
+        { x: 8, y: 8, hp: 45, alive: true }
+      ];
+      dragonBalls = [];
+      for (let i = 0; i < 7; i++) {
+        let pos = randomPos();
+        while ((pos.x === 0 && pos.y === 0) || enemies.some(e => e.x === pos.x && e.y === pos.y)) {
+          pos = randomPos();
+        }
+        dragonBalls.push({ ...pos, collected: false });
+      }
+      updateUI();
+      render();
+    }
+
+    function render() {
+      const cells = [...document.querySelectorAll('.cell')];
+      cells.forEach(cell => {
+        const x = Number(cell.dataset.x);
+        const y = Number(cell.dataset.y);
+        cell.textContent = '';
+        cell.classList.remove('player', 'enemy', 'ball');
+
+        const ball = dragonBalls.find(b => !b.collected && b.x === x && b.y === y);
+        if (ball) {
+          cell.textContent = '◎';
+          cell.classList.add('ball');
+        }
+
+        const enemy = enemies.find(e => e.alive && e.x === x && e.y === y);
+        if (enemy) {
+          cell.textContent = 'E';
+          cell.classList.add('enemy');
+        }
+
+        if (player.x === x && player.y === y) {
+          cell.textContent = 'P';
+          cell.classList.add('player');
+        }
+      });
+    }
+
+    function updateUI() {
+      hpEl.textContent = player.hp;
+      kiEl.textContent = player.ki;
+      ballsEl.textContent = player.balls;
+    }
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function movePlayer(dx, dy) {
+      const nx = player.x + dx;
+      const ny = player.y + dy;
+      if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) {
+        setStatus('Bạn không thể đi ra khỏi bản đồ!');
+        return;
+      }
+
+      player.x = nx;
+      player.y = ny;
+
+      const enemy = enemies.find(e => e.alive && e.x === nx && e.y === ny);
+      if (enemy) {
+        player.hp -= 10;
+        setStatus('Bạn va chạm với kẻ địch! Mất 10 HP.');
+      } else {
+        setStatus('Bạn đã di chuyển.');
+      }
+
+      updateUI();
+      render();
+      checkGameState();
+    }
+
+    function collectBall() {
+      const ball = dragonBalls.find(b => !b.collected && b.x === player.x && b.y === player.y);
+      if (!ball) {
+        setStatus('Không có viên Ngọc Rồng ở đây.');
+        return;
+      }
+      ball.collected = true;
+      player.balls += 1;
+      player.ki += 10;
+      setStatus('Bạn đã thu thập được viên Ngọc Rồng!');
+      updateUI();
+      render();
+      checkGameState();
+    }
+
+    function attackEnemy() {
+      const nearby = enemies.filter(e => e.alive && Math.abs(e.x - player.x) <= 1 && Math.abs(e.y - player.y) <= 1);
+      if (!nearby.length) {
+        setStatus('Không có kẻ địch trong tầm đánh.');
+        return;
+      }
+
+      const target = nearby[0];
+      const damage = 15 + Math.floor(Math.random() * 10);
+      target.hp -= damage;
+      setStatus(`Bạn đánh trúng ${damage} sát thương!`);
+
+      if (target.hp <= 0) {
+        target.alive = false;
+        player.ki += 5;
+        player.balls += 1;
+        setStatus('Kẻ địch đã bị đánh bại!');
+      }
+
+      updateUI();
+      render();
+      checkGameState();
+    }
+
+    function enemyTurn() {
+      enemies.forEach(enemy => {
+        if (!enemy.alive) return;
+        let dx = 0, dy = 0;
+
+        if (enemy.x < player.x) dx = 1;
+        else if (enemy.x > player.x) dx = -1;
+
+        if (enemy.y < player.y) dy = 1;
+        else if (enemy.y > player.y) dy = -1;
+
+        const nx = enemy.x + dx;
+        const ny = enemy.y + dy;
+
+        if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
+          enemy.x = nx;
+          enemy.y = ny;
+        }
+
+        if (enemy.x === player.x && enemy.y === player.y) {
+          player.hp -= 8;
+          setStatus('Quái vật tấn công bạn! Mất 8 HP.');
+        }
+      });
+
+      updateUI();
+      render();
+      checkGameState();
+    }
+
+    function checkGameState() {
+      if (player.hp <= 0) {
+        setStatus('Bạn đã thua! Nhấn F5 để chơi lại.');
+        return;
+      }
+
+      const aliveEnemies = enemies.filter(e => e.alive).length;
+      if (player.balls >= 7 && aliveEnemies === 0) {
+        setStatus('Chiến thắng! Bạn đã thu thập đủ 7 viên Ngọc Rồng và đánh bại tất cả kẻ thù!');
+      }
+    }
+
+    document.addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      if (key === 'w') movePlayer(0, -1);
+      if (key === 's') movePlayer(0, 1);
+      if (key === 'a') movePlayer(-1, 0);
+      if (key === 'd') movePlayer(1, 0);
+      if (key === 'c') collectBall();
+      if (key === 'f') attackEnemy();
+      if (key === 'q') setStatus('Bạn đã thoát trò chơi!');
+
+      if (['w','a','s','d','c','f','q'].includes(key)) {
+        enemyTurn();
+      }
+    });
+
+    createBoard();
+    setupGame();
+  </script>
+</body>
+</html>
